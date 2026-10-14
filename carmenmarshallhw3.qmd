@@ -1,0 +1,77 @@
+---
+title: "STAT 204 HW 3"
+format: html
+---
+
+```{r}
+# Load the coffee ratings data
+coffee_ratings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-07-07/coffee_ratings.csv')
+
+# Preview the data
+head(coffee_ratings)
+
+# Load package
+library(tidyverse)
+```
+
+How does altitude (meters above sea level) relate to total cup points (quality score)?
+Which countries produce the highest-rated coffees?
+Are there any outliers or missing values to address?
+What patterns emerge across different processing methods or coffee varieties?
+
+## Looking at Total Cup Points
+```{r} 
+# How does altitude (meters above sea level) relate to total cup points (quality score)?
+# The variable "total_cup_points" has 0 missing values, as seen in the data table
+summary(coffee_ratings$total_cup_points, na.rm = TRUE)
+
+# The mean (82.09) and median (82.50) total cup points are close to one another, suggesting a symmetric distribution. The range is from 0-90.58 points, suggesting there is a 0 point value in the data. This is strange because the 1st quartile is 81.08, super far from 0. Could this be a non-value? Will look at a boxplot and then remove the 0 value(s) to see if the distribution changes significantly.
+
+ggplot(coffee_ratings, aes(y = coffee_ratings$total_cup_points)) + geom_boxplot() 
+# This quick boxplot shows that all data points except for one are at least above 50 cup points, while one sits at 0. Judgment call would be to remove this observation from the data while analyzing total cup points.
+summary(coffee_ratings$total_cup_points[coffee_ratings$total_cup_points > 0])
+# Here I made a summary of total cup points without the zero value. It changes the mean and 1st quartile very slightly but not by what I think is a significant amount. Though the zero value isn't affecting the data much, I will still remove it during cleaning because it skews plots extremely far and I believe it is not an actual intended value.
+```
+
+## Looking at Altitude Variables
+```{r}
+# There are 4 altitude variables: "altitude", "altitude_low_meters", "altitude_high_meters", and "altitude_mean_meters". The first has 226 missing values, while the latter three have 230 missing values. 
+summary(coffee_ratings$altitude) # Getting a summary of this variable brings weird results because the variable is a string, values don't have standard units. In my analysis, will use "altitude_mean_meters" because it gives the average altitude for each coffee and is in standard units of meters already. This is in meters above sea level.
+summary(coffee_ratings$altitude_mean_meters, na.rm = TRUE)
+# Mean (1775m) and median (1311m) are quite different, suggesting outliers skewing the mean higher. The maximum value is 190164m, which is not a possible altitude. Glancing at the column for this variable, I see there are a few observations that show values greater than the highest possible altitude on the planet (about 9000m). Because I do not know if these are typos or a wrong value, I am going to remove them from this dataset for anaylsis. Will confirm judgment through a boxplot of mean altitude.
+
+ggplot(coffee_ratings, aes(y = coffee_ratings$altitude_mean_meters)) + geom_boxplot()
+
+#Question: What happens to the distribution/visualization when I remove the extreme values/potential typos?
+
+cleaned_altitude <- coffee_ratings[!is.na(coffee_ratings$altitude_mean_meters) &coffee_ratings$altitude_mean_meters < 9000,]
+ggplot(cleaned_altitude, aes(y = altitude_mean_meters)) + geom_boxplot()
+
+#This cleaned boxplot makes it a lot easier to visualize almost all of the data, as opposed to the previous boxplot, where it was impossible to see any values except for the outliers. For me, this justifies cutting those outliers from the analysis.
+
+summary(cleaned_altitude$altitude_mean_meters)
+# Now we see that the mean (1328m) and median (1311m) are much closer, suggesting the outliers were skewing the mean heavily. 
+```
+
+## Final Cleaning of Quality Score and Altitude Data
+```{r}
+# edit cleaned_altitude to remove the 0 value from the quality score variable, so that data is ready to analyze!
+altitude_score_data <- coffee_ratings %>%
+    filter(total_cup_points > 0, altitude_mean_meters < 9000) %>%
+    select(total_cup_points, altitude_mean_meters)
+
+# This data which I will now use to explore altitude and quality score, is 2 column and 1104 rows. This has excluded data with missing values, a zero value in quality score, and potential mis-entered values in altitude. 
+```
+
+## How is altitude related to cup points? 
+```{r}
+# First let's look at a box plot to see if there is any correlation
+ggplot(altitude_score_data, aes(x = altitude_mean_meters, y = total_cup_points)) +
+    geom_point()
+```
+
+
+
+```{r}
+#which countries produce highest rated coffee? could make a subset of the top 20 or 30 rated coffees(or like the 90th percentile?, so it's top 10% of coffees), and then show in a table the score and the country of origin, can present this in a bar chart too i think
+```
