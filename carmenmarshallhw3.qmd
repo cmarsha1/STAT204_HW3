@@ -179,7 +179,36 @@ coffee_ratings %>%
 ```{r}
 # summary for Brazil
 coffee_ratings %>%
-    filter(coffee_ratings$country_of_origin == "Guatemala") %>%
+    filter(coffee_ratings$country_of_origin == "Brazil") %>%
     select(total_cup_points) %>%
-    summary() 
+    summary()
+# Range (70.67-88.83), mean (82.41), median (82.42). Mean and median in the Middle Score Category. Some variation as well.
+```
+
+
+```{r}
+# summary for Peru
+coffee_ratings %>%
+    filter(coffee_ratings$country_of_origin == "Peru") %>%
+    select(total_cup_points) %>%
+    summary()
+# Range (77-88.75), mean (82.53), median (82.80). Mean and median in Middle Score Category. Not as much variation as Brazil and Guatemala.
+```
+
+Overall conclusions about the countries that have the top 10 coffees is that Ethiopia seems to have, on average, the highest average coffee ratings, as well as the #1 coffee ratings. The other countries in the top 10 have more variation, with a good share of lower rated coffees as well. Some of the countries in the top 10 don't have a lot of other coffees that are in the top 10% of coffee ratings data. 
+
+
+## Examining Patterns Across Varieties and Processing Methods
+
+```{r}
+#First want to look at the variables, and the levels/types of each variable
+# coffee varieties
+unique(coffee_ratings$variety) #29 unique values, 1 is NA. There are 226 missing values
+
+#make a set of boxplots for the varieties, filtering out the 0 value for total cup points and removing missing values/NAs from both variables
+coffee_ratings %>%
+    filter(!is.na(coffee_ratings$variety), !is.na(coffee_ratings$total_cup_points), total_cup_points > 0) %>%
+    ggplot(aes(x = total_cup_points, y = variety)) + geom_boxplot()
+
+# This plot doesn't tell us much about if some varieties have higher ratings, but can tell us a few things. Some of the varieties have a lot of lower rated outliers. The Catuai variety has the lowest rated coffee, while the two highest rated that are displayed are labeled Bourbon and Other. 
 ```
