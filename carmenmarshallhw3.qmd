@@ -65,13 +65,121 @@ altitude_score_data <- coffee_ratings %>%
 
 ## How is altitude related to cup points? 
 ```{r}
-# First let's look at a box plot to see if there is any correlation
+# First let's look at a box plot to see if the general spread, then we can split the data
 ggplot(altitude_score_data, aes(x = altitude_mean_meters, y = total_cup_points)) +
     geom_point()
+cor(altitude_score_data$altitude_mean_meters, altitude_score_data$total_cup_points)
+# Boxplot doesn't seem to show any specific pattern, and calculating correlation seems to be pretty low (~0.15). Will randomly split the data to see if this holds up.
+
+set.seed(67)
+altitude_score_data$half <- sample(rep(c("explore", "hold out"), length.out = nrow(altitude_score_data)))
+table(altitude_score_data$half)
+
+# Let's make a scatterplot for the "explore" half
+ggplot(filter(altitude_score_data, half == "explore"), aes(x = altitude_mean_meters, y = total_cup_points)) + geom_point() #has similar spread to the unsplit scatterplot
+
+ggplot(filter(altitude_score_data, half == "hold out"), aes(x = altitude_mean_meters, y = total_cup_points)) + geom_point()
+#I would judge that the scatterplots have generally the same shape and spread, so results can be predictable throughout the data and I will analyze the data as a whole set for this specific question.
+
+# From the scatterplots, there doesn't appear to be a relatonship between altitude and quality score. What about if we convert altitude to a categorical variable with levels, what will we see?
+
+#making cuts to turn altitude from number to category
+altitude.cuts <- quantile(altitude_score_data$altitude_mean_meters, c(0, 1/3, 2/3, 1), na.rm = TRUE)
+altitude.cuts
+altitude_score_data$mean_altitudes <- cut(altitude_score_data$altitude_mean_meters, breaks = altitude.cuts, labels = c("Low Elevation", "Middle Elevation", "High Elevation"), include.lowest = TRUE, ordered_result = TRUE)
+
+# Will have to also make quality score a categorical variable to make a frequency table and do a chi-square test to see if altitude and score are independent.
+
+score.cuts <- quantile(altitude_score_data$total_cup_points, c(0, 1/3, 2/3, 1), na.rm = TRUE)
+score.cuts
+altitude_score_data$qualitylevels <- cut(altitude_score_data$total_cup_points, breaks = score.cuts, labels = c("Lower Third Scores", "Middle Third Scores", "Higher Third Scores"), include.lowest = TRUE, ordered_result = TRUE)
+
+altitude.vs.score <- table(altitude_score_data$mean_altitudes, altitude_score_data$qualitylevels, dnn = c("Mean Altitude (m)", "Quality Score Level"))
+altitude.vs.score
+
+# While the Lower and Middle Third Score groups do not seem to have too much variation in their distribution of elevation, I see that the Higher Third Scores group has a lot more observations in High Elevation. This makes me wonder whether altitude and score are independent, so I will perform a Chi-square test. Expected counts are all above 5, so test will be valid. 
+
+chisquaretest1 <- chisq.test(altitude.vs.score)
+round(chisquaretest1$expected, 1)
+round(chisquaretest1$residuals, 1)
+
+# Unlike the scatterplot and correlation coefficient, the chi-square test is suggesting the alternative hypothesis, which is that Mean Altitude may not be independent of Quality Score. One observation that could hint at this test result is the larger variation of score points in the Middle Elevation category. This is shown in the scatterplot. Conversely, the data points that fall in the High Elevation category do not exhibit as much variation; the points are generally at a higher score. The results of the EDA could suggest that while there is not a linear relationship between altitude and quality score, coffee grown at middle elevation may be correlated with a lot of variation in total cup points.
+
+```
+
+## Which Countries Produce the Highest Rated Coffees?
+```{r}
+# First I want to see how many countries are included in this data, to see if it would be helpful to exclude some for easier visualization.
+unique(coffee_ratings$country_of_origin) #37 unique values, which includes 1 NA. 2 values are United States (Hawaii) and United States (Puerto Rico). I will keep these two as their own separate values because their climates and landscapes are different from the rest of the contiguous U.S. 
+
+# Will make a quick bar chart to see if any of the countries stand out.
+ggplot(coffee_ratings, aes(x = country_of_origin, y = total_cup_points)) + geom_col()
+# This bar chart isn't really helpful since it aggregates the total cup points a country might have.
+# Next idea would be to make a subset of the data that includes the top 10% of coffee scores, and then seeing where these coffees are from and visually representing that. 
+
+toptenthreshold <- quantile(coffee_ratings$total_cup_points, probs = 0.90, na.rm = TRUE)
+top_ten_scores <- coffee_ratings[coffee_ratings$total_cup_points > toptenthreshold, ]
+summary(top_ten_scores$total_cup_points)
+# This subsets the observations that are above the score of the 90th percentile. The lowest score above the 90th percentile is 84.75, and the highest is 90.58. 
+
+#Which countries have coffee in the top 10%, and how many coffees in this data belong to each country listed?
+top.countries <- top_ten_scores %>%
+    count(country_of_origin, sort = TRUE) %>%
+    slice_head(n = 5)
+top.countries
+# This shows there are 21 countries that have coffee in the top 10% of quality scores. That is over half of the total number of countries and still a lot to work with, so I am going to do the top 5 countries, i.e., the countries with the 5 highest count of coffee ratings in the top 10% of scores. 
+
+top.country.ratings <- top_ten_scores %>%
+  filter(country_of_origin %in% top.countries$country_of_origin) %>%
+  select(country_of_origin, total_cup_points)
+top.country.ratings
+
+# The countries with the most coffees in the top 10% of quality scores are Ethiopia, United States (Hawaii), Brazil, Colombia, and Kenya.
+
+ggplot(top.country.ratings, aes(x = country_of_origin, y = total_cup_points)) + geom_boxplot()
+# Here we can see the distribution of those ratings that are from the 5 countries with the most coffees in the top 10% of scores. Ethiopia has the coffee with the highest quality score, but also the most variation in the coffees presented. Brazil also has a high median score, while Colombia seems to have the lowest of this group.
+```
+
+# Which Countries Have the Top Ten Individual Coffee Ratings
+```{r}
+# We saw which countries had the highest amount of coffee ratings in the top 10% of the data, but we can take a closer look to see what the top 10 actual scores are and which countries 
+
+coffee_ratings %>%
+    slice_max(order_by = total_cup_points, n = 10) %>%
+    select(country_of_origin, total_cup_points)
+# This code lists the top 10 coffee ratings and their country of origin. Ethiopia has 7 of the 10 top coffees in this dataset. Guatemala has the 3rd, Brazil has the 6th, and Peru has the 7th. What is interesting is that Guatemala and Peru are not in the list of 5 countries with the most coffees in the top 10% of scores, yet they have one of the highest rated coffees. Is this just a one-off good coffee from these countries, or do they have some other high rated coffees? Or generally high rated coffee overall in their country?
+
+```
+
+# Coffee Rating Summaries for Ethiopia, Guatemala, Brazil, and Peru
+```{r}
+# These are the countries that have the top 10 coffee ratings. I want to see how their mean and median coffee ratings compare to each country's top coffee. 
+
+# summary for Ethiopia
+coffee_ratings %>%
+    filter(coffee_ratings$country_of_origin == "Ethiopia") %>%
+    select(total_cup_points) %>%
+    summary() 
+# Range (80-90.58), mean (85.48), median (85.20)
+# Mean and median fall within the Higher Scores category from previous section.
+
+```
+
+```{r}
+# summary for Guatemala
+coffee_ratings %>%
+    filter(coffee_ratings$country_of_origin == "Guatemala") %>%
+    select(total_cup_points) %>%
+    summary() 
+# Range (59.83-89.75), mean (81.85), median (82.50)
+# Guatemala has the lowest individual coffee rating of the entire dataset. Mean and median in the Middle Score category. Seems to have a lot of variation. 
 ```
 
 
-
 ```{r}
-#which countries produce highest rated coffee? could make a subset of the top 20 or 30 rated coffees(or like the 90th percentile?, so it's top 10% of coffees), and then show in a table the score and the country of origin, can present this in a bar chart too i think
+# summary for Brazil
+coffee_ratings %>%
+    filter(coffee_ratings$country_of_origin == "Guatemala") %>%
+    select(total_cup_points) %>%
+    summary() 
 ```
