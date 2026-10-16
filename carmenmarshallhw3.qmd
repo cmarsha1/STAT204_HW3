@@ -12,6 +12,9 @@ head(coffee_ratings)
 
 # Load package
 library(tidyverse)
+
+#Load patchwork
+library(patchwork)
 ```
 
 How does altitude (meters above sea level) relate to total cup points (quality score)?
@@ -66,8 +69,9 @@ altitude_score_data <- coffee_ratings %>%
 ## How is altitude related to cup points? 
 ```{r}
 # First let's look at a box plot to see if the general spread, then we can split the data
-ggplot(altitude_score_data, aes(x = altitude_mean_meters, y = total_cup_points)) +
-    geom_point()
+full.data <- ggplot(altitude_score_data, aes(x = altitude_mean_meters, y = total_cup_points)) +
+    geom_point() +
+    labs(title = "Unsplit Data")
 cor(altitude_score_data$altitude_mean_meters, altitude_score_data$total_cup_points)
 # Boxplot doesn't seem to show any specific pattern, and calculating correlation seems to be pretty low (~0.15). Will randomly split the data to see if this holds up.
 
@@ -76,10 +80,15 @@ altitude_score_data$half <- sample(rep(c("explore", "hold out"), length.out = nr
 table(altitude_score_data$half)
 
 # Let's make a scatterplot for the "explore" half
-ggplot(filter(altitude_score_data, half == "explore"), aes(x = altitude_mean_meters, y = total_cup_points)) + geom_point() #has similar spread to the unsplit scatterplot
+explore_half <- ggplot(filter(altitude_score_data, half == "explore"), aes(x = altitude_mean_meters, y = total_cup_points)) + 
+    geom_point() + 
+    labs(title = "Explore Half") #has similar spread to the unsplit scatterplot
 
-ggplot(filter(altitude_score_data, half == "hold out"), aes(x = altitude_mean_meters, y = total_cup_points)) + geom_point()
+holdout_half <- ggplot(filter(altitude_score_data, half == "hold out"), aes(x = altitude_mean_meters, y = total_cup_points)) + geom_point() +
+    labs(title = "Hold Out Half")
 #I would judge that the scatterplots have generally the same shape and spread, so results can be predictable throughout the data and I will analyze the data as a whole set for this specific question.
+
+figure1 <- (full.data)/(explore_half + holdout_half) # FIGURE 1
 
 # From the scatterplots, there doesn't appear to be a relatonship between altitude and quality score. What about if we convert altitude to a categorical variable with levels, what will we see?
 
@@ -100,6 +109,7 @@ altitude.vs.score
 # While the Lower and Middle Third Score groups do not seem to have too much variation in their distribution of elevation, I see that the Higher Third Scores group has a lot more observations in High Elevation. This makes me wonder whether altitude and score are independent, so I will perform a Chi-square test. Expected counts are all above 5, so test will be valid. 
 
 chisquaretest1 <- chisq.test(altitude.vs.score)
+chisquaretest1
 round(chisquaretest1$expected, 1)
 round(chisquaretest1$residuals, 1)
 
@@ -136,7 +146,8 @@ top.country.ratings
 
 # The countries with the most coffees in the top 10% of quality scores are Ethiopia, United States (Hawaii), Brazil, Colombia, and Kenya.
 
-ggplot(top.country.ratings, aes(x = country_of_origin, y = total_cup_points)) + geom_boxplot()
+figure2 <- ggplot(top.country.ratings, aes(x = country_of_origin, y = total_cup_points)) + geom_boxplot() + labs(x = "Country of Origin", y = "Total Cup Points", title = "The Top 5 Countries of the Top 10% Country Ratings") # FIGURE 2 
+figure2
 # Here we can see the distribution of those ratings that are from the 5 countries with the most coffees in the top 10% of scores. Ethiopia has the coffee with the highest quality score, but also the most variation in the coffees presented. Brazil also has a high median score, while Colombia seems to have the lowest of this group.
 ```
 
@@ -198,7 +209,7 @@ coffee_ratings %>%
 Overall conclusions about the countries that have the top 10 coffees is that Ethiopia seems to have, on average, the highest average coffee ratings, as well as the #1 coffee ratings. The other countries in the top 10 have more variation, with a good share of lower rated coffees as well. Some of the countries in the top 10 don't have a lot of other coffees that are in the top 10% of coffee ratings data. 
 
 
-## Examining Patterns Across Varieties and Processing Methods
+## Examining Patterns Across Varieties 
 
 ```{r}
 #First want to look at the variables, and the levels/types of each variable
@@ -212,3 +223,118 @@ coffee_ratings %>%
 
 # This plot doesn't tell us much about if some varieties have higher ratings, but can tell us a few things. Some of the varieties have a lot of lower rated outliers. The Catuai variety has the lowest rated coffee, while the two highest rated that are displayed are labeled Bourbon and Other. 
 ```
+
+# Examining Patterns Across Processing Methods 
+```{r}
+#quick look at processing methods
+unique(coffee_ratings$processing_method) #4 methods + 1 NA value
+# how many NAs?
+sum(is.na(coffee_ratings$processing_method)) # 170 NAs
+
+ggplot(coffee_ratings, aes(x = processing_method)) + geom_bar()
+# This barplot shows the frequency of each processing method. The method with the highest frequency is the Washed/Wet method, while Natural/Dry is the second most common but is less than half as common as Washed/Wet in this dataset. I wonder if there is a relationship between the method and altitude?
+
+```
+
+# Processing Method vs. Altitude 
+```{r}
+# I will keep the NAs in this analysis for now because it is it's own category, but if I am going to perform a test on the independence later, I will remove it.
+
+# boxplot of mean altitude, grouped by processing method. Using the cleaned_altitude eariler from the first section so that incorrect values are excluded. 
+ggplot(cleaned_altitude, aes(x = processing_method, y = altitude_mean_meters)) + geom_boxplot()
+# There don't seem to be any great differences in altitude across processing methods, but might make a scatterplot of altitude vs. total cup points while grouping by processing method to see if they are clustering in similar areas. 
+
+# i will have to mutate the altitude_score_data to add a column for processing method
+# taking out the NAs and Others because they are just crowding up the plot and we don't even know what methods they are
+figure3 <- coffee_ratings %>%
+    filter(!is.na(altitude_mean_meters), !is.na(processing_method), !(processing_method == "Other"),altitude_mean_meters < 9000, total_cup_points > 0) %>%
+    select(processing_method, altitude_mean_meters, total_cup_points) %>%
+    ggplot(., aes(x = altitude_mean_meters, y = total_cup_points, color = processing_method)) + geom_point(alpha = 0.4) +
+    labs(x = "Mean Altitude (m)", y = "Total Cup Points", color = "Processing Method", title = "Altitude vs. Quality Score, Grouped by Processing Method") # FIGURE 3
+figure3
+
+# According to the scatterplot, there doesn't really seem to be any kind of coherent pattern or clustering of certain processing methods with different altitudes or cup points, much like the boxplot suggested. 
+
+# I wonder if processing methods are more or less common in certain countries? But to look at all the 37 categories for country_of_origin is a lot, so I will group the countries into larger continent groups and analyze by continent.
+
+unique(coffee_ratings$country_of_origin)
+
+coffee_ratings <- coffee_ratings %>%
+    mutate(continent = case_when(
+    country_of_origin %in% c("Ethiopia", "Rwanda", "Burundi", "Malawi", "Mauritius", "Uganda", "Tanzania, United Republic Of", "Cote d?Ivoire", "Kenya", "Zambia") ~ "Africa", 
+    country_of_origin %in% c("United States", "Costa Rica", "El Salvador", "Haiti", "Guatemala", "United States (Hawaii)", "Mexico", "Nicaragua", "Colombia", "Brazil", "Panama", "Ecuador", "Peru", "Honduras", "United States (Puerto Rico)") ~ "North/Central/South America",
+     country_of_origin %in% c("Taiwan", "Thailand", "Myanmar", "India", "Japan", "Indonesia", "Vietnam", "Laos", "China", "Phillippines", "Papua New Guinea") ~ "Asia"))
+
+# Now let's make a contingency table and a bar plot to see if some methods are more common in different continents
+
+chitest2 <- coffee_ratings %>%
+    filter(!is.na(processing_method), !is.na(country_of_origin)) %>% 
+   with(table(continent, processing_method, dnn = c("Continent", "Processing Method")))
+
+coffee_ratings %>%
+    filter(!is.na(processing_method), !is.na(country_of_origin)) %>% 
+    ggplot(aes(x = continent, fill = processing_method)) + geom_bar(position = "stack") 
+
+# We can see from this stacked bar plot that Washed/Wet seems to be the most common throughout the contients. Another interesting observation is that countries in Africa don't seem to use Pulped natural/honey according to this data.
+
+# Is a chi square test appropriate to do here to see if Continent and Processing Method are independent? I would say no because there are a lot of observed counts that are below 5 so the test wouldn't be valid. I will conclude that there is no significant observed pattern between continent and processing method.
+```
+
+## EDA CONCLUSIONS
+First, I cleaned the data of anything that might interfere with or skew the data. I noticed a few inputted values that might be typos or mis-entered data, so I excluded them just to make sure they didn't wildly alter the analysis. This included a value from "Total Cup Points" that read 0, 230 missing values from "Altitude Mean Meters", and a few values from "Altitude Mean Meters" that seemed wrongly entered, since they read as altitude measures that are not possible (such as >190,000m). After removing these, I split the data while analyzing altitude vs. score to make sure that the pattern (or lack thereof) was predictable in both halves.
+There does not seem to be a linear relationship between altitude and total cup points, which is suggested both by the box plots that I produced before and after splitting the data. However, there might be some other relationship at play because my Chi Square test of independence between Altitude and Quality Score produced a result suggesting that the two variables are not independent. This would require more advanced analysis, however. I found that countries such as Ethiopia, the United States (Hawaii), Brazil, Colombia, and Kenya are producing the most coffees that are in the top 10% of quality scores in this dataset. Moreover, Ethiopia has 7 of the 10 highest scored coffees in this data, and the highest average coffee score rating of those countries that have a coffee in the 10 highest scored. - Through some exploration, I decided coffee variety isn’t necessarily a helpful variable to explore in this dataset. There are too many unique values that can’t be grouped or simplified in any meaningful way. - As for processing methods, the most common seems to be the Washed/Wet method. There doesn’t seem to be any significant pattern or clustering of Processing Method across Altitude and Cup Points, suggesting it is not interacting significantly in this dataset.
+
+# 2-3 Appropriate Visualizations
+
+```{r}
+figure1
+figure2
+figure3
+```
+
+
+## PART 2
+# Publication Ready Plot 
+```{r}
+coffee_clean <- coffee_ratings %>%
+  filter(!is.na(altitude_mean_meters),
+         !is.na(total_cup_points),
+         !is.na(continent),
+         altitude_mean_meters > 0,
+         altitude_mean_meters < 3000,
+         total_cup_points > 0)
+
+ggplot(coffee_clean, aes(x = altitude_mean_meters, y = total_cup_points, 
+                         color = continent)) +
+  geom_point(alpha = 0.8) +
+  scale_colour_manual(values = c("#009E73", "#CC79A7", "#56B4E9")) + 
+  labs(x = "Mean Altitude (meters)", y = "Total Cup Points", color = "Continent", title = "Examining Mean Altitude versus Quality Score, Across Continents") + 
+  facet_wrap(~ continent) +
+  theme_light(base_size = 14)
+```
+
+# Design Choices
+Firstly I chose to use my continent variable to represent the geographic differences instead of by country, which narrows down the large set of 37 countries to 3 groups, making it much easier to visualize. I changed the color palette to three very different colors using a colorblind palette that I found online. 
+
+# Ugly Plot 
+```{r}
+coffee_clean2 <- coffee_ratings %>%
+  filter(!is.na(altitude_mean_meters),
+         !is.na(total_cup_points),
+         altitude_mean_meters < 9000,
+         altitude_mean_meters > 0)
+
+ggplot(coffee_clean2, aes(x = altitude_mean_meters, y = total_cup_points, 
+                         color = continent)) +
+  geom_point(alpha = 0.8) +
+  scale_colour_manual(values = c("#6A4325", "#8B0000", "#006400")) + 
+  labs(x = "altitude", y = "score", color = "country", title = "Altitude versus Cup Points") +
+  theme_dark(base_size = 7)
+```
+
+# What makes the plot so terrible?
+1) The colors to group the continents are not color blind friendly.
+2) There are no units for altitude on the x-axis.
+3) The axis and legend labels are either incorrect or not professional.
+4) The title is not informative.
+5) The theme makes the data points even harder to see. 
